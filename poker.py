@@ -1,6 +1,6 @@
-import time, threading, copy, random
+import time, threading, copy, random, re
 i = 0
-players = ["Roe"]
+players = ["Roe","Janus","Szynek"]
 '''
 print("Enter players' names:")
 while(True):
@@ -28,7 +28,7 @@ class Game:
               self.players.add(i)
          self.controlled_player = players[0]
          self.time = 0
-         self.balances = dict(zip(self.players,[0 for i in range (len(self.players))]))  # Assign 0 to every player in player list
+         self.balances = dict(zip(self.players,[1000 for i in range (len(self.players))]))  # Assign 0 to every player in player list
          
     def display_time(self):
         while(True):
@@ -65,28 +65,46 @@ class Round(Game):
     def __init__(self, game) -> None:
         print("Round begins...")
         Game.ante *=2
+        self.players = list(game.players)
+        self.balances = game.balances
         self.balances[self.players[Game.big_blind[1]]] -= Game.big_blind[0]
         self.balances[self.players[Game.small_blind[1]]] -= Game.small_blind[0]
-        self.players = list(game.players)
+        for i in self.players:
+            self.balances[i] -= Game.ante
         self.pot = 0
         self.player_cards = dict(zip(self.players, [Round.draw_cards(2) for i in range(len(self.players))]))
         self.bets = dict(zip(self.players,[0 for i in range(len(self.players))]))
         self.bets_phases = dict(zip(list(Round.round_phases.keys()),[copy.deepcopy(self.bets) for i in range(len(Round.round_phases.keys()))]))
-        self.balances = game.balances
+        self.bets[self.players[Game.small_blind[1]]] += Game.small_blind[0]
+        self.bets[self.players[Game.big_blind[1]]] += Game.big_blind[0]
+        self.bets_phases[1][self.players[Game.small_blind[1]]] += Game.small_blind[0]
+        self.bets_phases[1][self.players[Game.big_blind[1]]] += Game.big_blind[0]
         self.next_move()
+        
 
     ### Misc tools ###
 
-    def get_card_name(self,card):
-        return (self.values[card[0]] + " of " + self.colours[card[1]])
+    def get_card_name(self,cards):
+        names = set()
+        for i in cards:
+            names.add((self.values[i[0]] + " of " + self.colours[i[1]]))
+        return names
     
-    def get_next_player(self,player):
+    def get_next_player(self,player):   # Returns ID
         if player != len(self.players) -1:
             return player +1
         else:
             return 0
     
-    
+    def get_previous_player(self,player): # Ditto
+        if player != 0:
+            return player - 1
+        else:
+            return len(self.players) - 1
+        
+    def get_player_by_id(self,id):
+        return self.players[id]
+        
     def draw_cards(no):
         cards = set()
         deck_copy = copy.deepcopy(Round.deck)
@@ -228,15 +246,18 @@ class Round(Game):
     ### Round course and administration ###
 
     def next_player(self):
-        if i!=len(self.players)-1:
+        if self.current_player!=len(self.players)-1:
             self.current_player+=1
         else:
             self.current_player = 0
+            
 
     def next_move(self):
+        self.Interface()
         bets = [i for i in self.bets_phases[self.round_phase].values()]
-        if all in bets == i and i!=0:
+        if (i == j for i,j in bets) and (0 not in bets):
             self.round_phase +=1
+            print("Moving onto the next round phase...")
             if self.round_phase == 2:
                 for i in self.draw_cards(3):
                     self.community_cards.add(i)
@@ -244,22 +265,42 @@ class Round(Game):
                 for i in self.draw_cards(1):
                     self.community_cards.add(i)
             else:
-                pass ## Showdown
+                self.showdown()
 
-        elif self.bets[self.current_player] < max(bets):
-            print("Press Enter to call, Escape to fold, X to all-in or enter the amount of your bet")
-            input1 = input()
+        elif self.bets[self.players[self.current_player]] < max(bets):
+            input1 = input("Press C to call, F to fold, X to all-in or enter the amount of your bet" + '\n')
+            if input1 == "C":
+                self.call(self.current_player, self.bets_phases[self.round_phase][self.get_player_by_id(self.get_previous_player(self.current_player))]- self.bets_phases[self.round_phase]
+                          [self.get_player_by_id(self.current_player)])
+            elif input1 == "F":
+                self.fold(self.current_player)
+            elif input1 == "X":
+                self.bet(self.current_player, self.balances[self.get_player_by_id(self.current_player)])
+            elif (i in r'[0-9]' for i in input1):
+                self.bet(self.current_player, int(input1))
+            else:
+                print("Inadmissible action")
+                self.next_move()
+
 
         
         else:
-            print("Press Enter to check, X to all-in or enter the amount of your bet")
-            input1= input()
+            input1 = input("Press C to check, X to all-in or enter the amount of your bet"+ '\n')
+            if input1 == "C":
+                self.call(self.current_player, self.bets_phases[self.round_phase][self.get_player_by_id(self.get_previous_player(self.current_player))]- self.bets_phases[self.round_phase]
+                          [self.get_player_by_id(self.current_player)])
+            elif input1 == "X":
+                self.bet(self.current_player, self.balances[self.get_player_by_id(self.current_player)])
+            elif (i in r'[0-9]' for i in input1):
+                self.bet(self.current_player, int(input1))
+            else:
+                self.next_move()
 
 
     def bet(self,player,amount):
-        if self.balances[player]<=amount:
-            self.bets[player] +=amount
-            self.bets_phases[self.round_phase][player] += amount
+        if self.balances[self.players[player]]<=amount:
+            self.bets[self.players[player]] +=amount
+            self.bets_phases[self.round_phase][self.players[player]] += amount
             self.pot += amount
             self.next_player()
             self.next_move()
@@ -275,9 +316,9 @@ class Round(Game):
         self.next_move()
 
     def fold(self,player):
-        self.balances[player] -= self.bets[player]
+        self.balances[self.players[player]] -= self.bets[self.players[player]]
         self.next_player()
-        self.players.remove(player)
+        self.players.remove(self.get_player_by_id(player))
         self.next_move()
 
     def update_balances(self,game):
@@ -291,10 +332,30 @@ class Round(Game):
 
     ##############################################
     
-    class Interface:
-        def __init__(self) -> None:
-            pass
-    
+    def Interface(self):
+        print(
+        '----------------------------------------' + '\n'
+        + "SKAWINA HOLD'EM" + '\n' 
+        )
+        print(f"Your cards: {(self.player_cards[self.get_player_by_id(0)])}" )
+        print(f"Community cards: {self.community_cards}"+'\n')
+        for i in self.players:
+            print(f"{i}: {self.balances[i]}, bets {self.bets[i]}")
+            if i == self.players[self.big_blind[1]]:
+                print(" *BIG BLIND*" +'\n')
+            elif i == self.players[self.small_blind[1]]:
+                print(" *SMALL BLIND*"+'\n')
+            elif i == self.players[self.dealer]:
+                print(" *DEALER*"+'\n')
+            else:
+                print('\n')
+        print(f"POT:{self.pot}")
+        print(f"Current player: {self.get_player_by_id(self.current_player)}")
+        print(
+        '----------------------------------------' + '\n'
+        + "SKAWINA HOLD'EM" + '\n' 
+        )
+
 
        
 
