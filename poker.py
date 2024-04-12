@@ -1,4 +1,4 @@
-import time, threading, copy, random, re
+import time, threading, copy, random, re, os
 i = 0
 players = ["Roe","Janus","Szynek"]
 '''
@@ -252,17 +252,17 @@ class Round(Game):
             self.current_player = 0
             
 
-    def next_move(self):
-        self.Interface()
+    def next_move(self, *args):
+        self.Interface(args)
         bets = [i for i in self.bets_phases[self.round_phase].values()]
         if (i == j for i,j in bets) and (0 not in bets):
             self.round_phase +=1
             print("Moving onto the next round phase...")
             if self.round_phase == 2:
-                for i in self.draw_cards(3):
+                for i in Round.draw_cards(3):
                     self.community_cards.add(i)
             elif self.round_phase ==3 or self.round_phase ==4:
-                for i in self.draw_cards(1):
+                for i in Round.draw_cards(1):
                     self.community_cards.add(i)
             else:
                 self.showdown()
@@ -279,8 +279,7 @@ class Round(Game):
             elif (i in r'[0-9]' for i in input1):
                 self.bet(self.current_player, int(input1))
             else:
-                print("Inadmissible action")
-                self.next_move()
+                self.next_move("Inadmissible action")
 
 
         
@@ -294,32 +293,34 @@ class Round(Game):
             elif (i in r'[0-9]' for i in input1):
                 self.bet(self.current_player, int(input1))
             else:
-                self.next_move()
+                self.next_move("Inadmissible action")
 
 
     def bet(self,player,amount):
-        if self.balances[self.players[player]]<=amount:
+        if self.balances[self.players[player]]>=amount:
+            self.balances[self.get_player_by_id(player)] -= amount
             self.bets[self.players[player]] +=amount
             self.bets_phases[self.round_phase][self.players[player]] += amount
             self.pot += amount
             self.next_player()
-            self.next_move()
+            self.next_move(f"{self.get_player_by_id(player)} has bet {amount}")
         else:
-            print("Inadmissible bet size")
-            self.next_move()
+            self.next_move("Inadmissible bet size")
     
     call = bet
 
     def check(self,player):
 
         self.next_player()
-        self.next_move()
+        self.next_move(f"{self.get_player_by_id(player)} has checked")
 
     def fold(self,player):
         self.balances[self.players[player]] -= self.bets[self.players[player]]
         self.next_player()
         self.players.remove(self.get_player_by_id(player))
-        self.next_move()
+        if len(self.players) == 1:
+            os.abort()
+        self.next_move(f"{self.get_player_by_id(player)} has folded")
 
     def update_balances(self,game):
         game.balances = self.balances
@@ -332,7 +333,7 @@ class Round(Game):
 
     ##############################################
     
-    def Interface(self):
+    def Interface(self, *args):
         print(
         '----------------------------------------' + '\n'
         + "SKAWINA HOLD'EM" + '\n' 
@@ -352,9 +353,12 @@ class Round(Game):
         print(f"POT:{self.pot}")
         print(f"Current player: {self.get_player_by_id(self.current_player)}")
         print(
-        '----------------------------------------' + '\n'
-        + "SKAWINA HOLD'EM" + '\n' 
+        '----------------------------------------' + '\n' 
         )
+        if len(args) !=0:
+            for i in args:
+                print(f"Attention:{str(i)}")
+
 
 
        
