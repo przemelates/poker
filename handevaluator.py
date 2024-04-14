@@ -1,148 +1,118 @@
 from __future__ import annotations
 
 from cards import *
+from yaku import *
 from dataclasses import dataclass
+from collections.abc import Iterable
+
 
 """
 Hand strength evaluation
 """
 
 
-@dataclass
-class Yaku:
-    yaku: str
-    high_card: Card | None
-
-    def __str__(self):
-        if self.high_card is None:
-            return self.yaku
-        return f"{self.yaku}, {self.high_card.value_str()} high"
-
-
 class HandEvaluator:
+    """
+    Helper private methods
+    """
     @staticmethod
-    def check_flush(hand: list[Card]) -> Yaku | None:
+    def _longest_suit(hand: list[Card]) -> list[Card]:
         suit_count = [0 for _ in CARD_SUITS]
         for card in hand:
             suit_count[card.suit] += 1
-
-        if max(suit_count) < 5:
-            return None
-
         best_suit = suit_count.index(max(suit_count))
-        high_card = max([c for c in hand if c.suit == best_suit], key=lambda c: c.value)
-        return Yaku("Flush", high_card)
+        return list(filter(lambda c: c.suit == best_suit, hand))
 
     @staticmethod
-    def check_straight(hand: list[Card]) -> Yaku | None:
-        flush_array = hand
-        flush_array.sort(key=lambda c: c.value)  # Sort by first element
-        streak = 1
-        excluded = set()
-        for i in range(len(flush_array) - 1, 0, -1):
-            if flush_array[i].value == flush_array[i - 1].value + 1:
-                streak += 1
-                if streak == 5:
-                    for i in excluded:
-                        flush_array.remove(i)
-                    top = max(flush_array, key=lambda c: c.value)
-                    return Yaku("Straight", top)
-            elif flush_array[i].value == flush_array[i - 1].value:
-                continue
-            else:
-                streak = 1
-                excluded.add(flush_array[i])
-        return None
+    def _check_straight_5(hand: list[Card], start_index: int) -> bool:
+        value = hand[start_index].value
+        for i in range(5):
+            if hand[start_index + i].value != value:
+                return False
+            value += 1
 
+        return True
+
+    @staticmethod
+    def _highest_index(arr, el):
+        for i, e in list(enumerate(arr))[::-1]:
+            if e == el:
+                return i
+
+    """
+    Yaku check methods
+    """
     @staticmethod
     def check_straight_flush(hand: list[Card]) -> Yaku | None:
-        suit_count = [0 for _ in CARD_SUITS]
+        longest_suit = HandEvaluator._longest_suit(hand)
+        longest_suit.sort()
+        for i in range(len(longest_suit) - 4):
+            if HandEvaluator._check_straight_5(longest_suit, i):
+                if longest_suit[i + 4].value == 12:
+                    return RoyalFlush(suit=longest_suit[0].suit)
+                return StraightFlush(high_card=longest_suit[i + 4], suit=longest_suit[0].suit)
+
+    @staticmethod
+    def check_flush(hand: list[Card]) -> Yaku | None:
+        longest_suit = HandEvaluator._longest_suit(hand)
+        if len(longest_suit) < 5:
+            return None
+        return Flush(high_card=max(longest_suit), suit=longest_suit[0].suit)
+
+    @staticmethod
+    def check_straight(_hand: list[Card]) -> Yaku | None:
+        hand = list(set(_hand))
+        hand.sort()
+
+        for i in range(len(hand) - 4):
+            if HandEvaluator._check_straight_5(hand, i):
+                return Straight(high_card=hand[i + 4])
+
+    @staticmethod
+    def check_multiples(hand: list[Card]) -> Yaku | None:
+        multiples = [0] * 13
         for card in hand:
-            suit_count[card.suit] += 1
+            multiples[card.value] += 1
 
-        if max(suit_count) < 5:
-            return None
+        if 4 in multiples:
+            high_card = Card(-1, multiples.index(4))
+            kickers = [max(filter(lambda c: c != high_card, hand))]
+            return Quads(high_card=high_card, kickers=kickers)
 
-        best_suit = suit_count.index(max(suit_count))
-        hand_best_suit = [card for card in hand if card.suit == best_suit]
+        if 3 in multiples and 2 in multiples:
+            set_card = Card(-1, multiples.index(3))
+            pair_card = Card(-1, HandEvaluator._highest_index(multiples, 2))
+            return FullHouse(high_card=set_card, second_high_card=pair_card)
 
-        straight = HandEvaluator.check_straight(hand_best_suit)
-        if straight is None:
-            return None
+        if 3 in multiples:
+            set_card = Card(-1, multiples.index(3))
+            kickers = sorted(filter(lambda c: c != set_card, hand), reverse=True)[:2]     # 2 kickers with a set
+            return Set(high_card=set_card, kickers=kickers)
 
-        return Yaku("Straight Flush", max(hand_best_suit, key=lambda c: c.value))
+        if multiples.count(2) >= 2:
+            first_pair_card = Card(-1, HandEvaluator._highest_index(multiples, 2))
+            multiples.pop(first_pair_card.value)
+            second_pair_card = Card(-1, HandEvaluator._highest_index(multiples, 2))
+            kickers = [max(filter(lambda c: c != first_pair_card and c != second_pair_card, hand))]
+            return TwoPair(high_card=first_pair_card, second_high_card=second_pair_card, kickers=kickers)
 
-    @staticmethod
-    def check_royal_flush(hand: list[Card]) -> Yaku | None:
-        if HandEvaluator.check_straight_flush(hand) is None:
-            return None
-
-        royal_flush_sets = []
-        for suit in CARD_SUITS:
-            royal_flush_set = set()
-            royal_flush_sets.append(royal_flush_set)
-            for j in CARD_VALUES_HONORS:
-                royal_flush_set.add((j, suit))
-        for suit in royal_flush_sets:
-            if suit in hand:
-                return Yaku("Royal Flush", None)
-        return None
-
-    @staticmethod
-    def check_full(hand: list[Card]) -> Yaku | None:
-        # TODO to jest źle!!! trójka zawiera parę
-        if HandEvaluator.check_pairs(hand, 3) and HandEvaluator.check_pairs(hand, 2):
-            return Yaku("Full House", None)  # TODO high card
-        else:
-            return None
+        if 2 in multiples:
+            pair_card = Card(-1, multiples.index(2))
+            kickers = sorted(filter(lambda c: c != pair_card, hand), reverse=True)[:3]    # 3 kickers with a pair
+            return Pair(high_card=pair_card, kickers=kickers)
 
     @staticmethod
-    def get_multiples(hand: list[Card]) -> dict[int, int]:
-        count = dict()
-        for card in hand:
-            if card.value not in count.keys():
-                count[card.value] = 1
-            else:
-                count[card.value] += 1
-        return count
+    def check_high_card(hand: list[Card]) -> Yaku:
+        top5 = sorted(hand, reverse=True)[:5]
+        return HighCard(high_card=top5[0], kickers=top5[1:])
 
     @staticmethod
-    def check_pairs(hand, size):
-        max_ = max(HandEvaluator.get_multiples(hand).values())
-        if max_ != size:
-            return False
-        values = list(HandEvaluator.get_multiples(hand).values())
-        keys = list(HandEvaluator.get_multiples(hand).keys())
-        keys.sort(reverse=True)
-        for i in range(len(keys)):
-            if HandEvaluator.get_multiples(hand)[keys[i]] == size:
-                return True, values.count(max_), keys[
-                    i]  # How many n-sized card multiples are in hand, what is the highest-value multiplied card
-
-    @staticmethod
-    def check_high_card(hand):
-        flush_array = list(hand)
-        flush_array.sort(key=lambda i: i[0])
-        top = max(flush_array, key=lambda i: i[0])
-        return top[0]
-
-
-    """
-    Nie ma co sie bawić z ogólnym algorytmem do szukania krotek
-    Tutaj lekka duplikacja kodu jest OK bo upraszcza czytanie go
-    A python ma być czytelny
-    Lepiej zrobić po prostu po jednej metodzie na każdy układ
-    """
-    # TODO: zrobić tak, a potem uzupełnić metodę poniżej
-
-    @staticmethod
-    def better_get_hand_value(hand: list[Card]) -> Yaku:
+    def evaluate(hand: list[Card]) -> Yaku:
         methods = [
             HandEvaluator.check_straight_flush,
             HandEvaluator.check_flush,
             HandEvaluator.check_straight,
-            HandEvaluator.check_full,
-            # TODO ...
+            HandEvaluator.check_multiples
         ]
 
         for method in methods:
@@ -150,37 +120,30 @@ class HandEvaluator:
             if yaku is not None:
                 return yaku
 
-        return Yaku("High Card", max(hand, key=lambda c: c.value))
+        return HandEvaluator.check_high_card(hand)
 
-    @staticmethod
-    def get_hand_value(self, hand):
-        if self.check_royal_flush(hand) == True:
-            print("Royal Flush")
-            return 140
-        elif self.check_straight_flush(hand) != False:
-            print(f"Straight Flush, {self.values[self.check_straight_flush(hand)[1]]} high")
-            return self.check_straight_flush(hand)[1] + 8 * 14
-        elif self.check_pairs(hand, 4) != False:
-            print(f"Four of a Kind, {self.values[self.check_pairs(hand, 4)[2]]} high")
-            return self.check_pairs(hand, 4)[2] + 7 * 14
-        elif self.check_full(hand) != False:
-            print(f"Full house, {self.values[self.check_full(hand)[1]]} high")
-            return self.check_full(hand)[1] + 0.1 * self.check_full(hand)[2] + 6 * 14
-        elif self.check_flush(hand) != False:
-            print(f"Flush, {self.values[self.check_flush(hand)[1]]} high")
-            return self.check_flush(hand)[1] + 5 * 14
-        elif self.check_straight(hand) != False:
-            print(f"Straight, {self.values[self.check_straight(hand)[1]]} high")
-            return self.check_straight(hand)[1] + 4 * 14
-        elif self.check_pairs(hand, 3) != False:
-            print(f"Three of a kind, {self.values[self.check_pairs(hand, 3)[2]]} high")
-            return self.check_pairs(hand, 3)[2] + 3 * 14
-        elif self.check_pairs(hand, 2) != False and self.check_pairs(hand, 2)[1] == 2:
-            print(f"Two pairs, {self.values[self.check_pairs(hand, 2)[2]]} high")
-            return self.check_pairs(hand, 2)[2] + 2 * 14
-        elif self.check_pairs(hand, 2) != False:
-            print(f"Pair, {self.values[self.check_pairs(hand, 2)[2]]} high")
-            return self.check_pairs(hand, 2)[2] + 14
-        else:
-            print(f"{self.values[self.check_high_card(hand)]} high")
-            return self.check_high_card(hand)
+
+if __name__ == '__main__':
+    print("Hand Evaluator Tests")
+
+    def hand_from_str(s):
+        return [Card.from_str(ss) for ss in s.split(" ")]
+
+    test_data = [
+        ("As Qs Kh 4s Js Ts Ks", "Royal Flush in Spades"),
+        ("Ks Kh Kd Jh Qh 9h Th", "Straight Flush in Hearts, K high"),
+        ("5h 6h 7h 5s 5d 8h 5c", "Quad 5's, 8 kicker"),
+        ("7h 9s Jc 7c 9c 9d Jh", "Full house, 9's and J's"),
+        ("7c 9c Kc 9h Qc 9d 2c", "Flush in Clubs, K high"),
+        ("Jd 5s 6c 7d 8h Ts 9c", "Straight, J high"),
+        ("8h Jd Qd 7h Js Ad Jh", "Set of J's, A-Q kicker"),
+        ("8h Jd Qd 8c Js Ad Ah", "Two Pair, A's and J's, Q kicker"),
+        ("8h Jd Qd 5c Js Ad 3h", "Pair of J's, A-Q-8 kicker"),
+        ("8h Jd Qd 6c Ks 2d 3h", "High Card K, Q-J-8-6 kicker"),
+    ]
+
+    print(f"{'HAND':45}{'EVALUATED':45}{'EXPECTED':45}")
+    for test in test_data:
+        test_hand = hand_from_str(test[0])
+        yaku = HandEvaluator.evaluate(test_hand)
+        print(f"{test[0]:45}{str(yaku):45}{test[1]:45}")
