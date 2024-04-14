@@ -39,7 +39,7 @@ class SuitYaku(Yaku):
 
 @dataclass
 class RoyalFlush(SuitYaku):
-    base_value = 10
+    base_value: int = 10
 
     def __str__(self):
         return f"Royal Flush in {self.suit}"
@@ -47,7 +47,7 @@ class RoyalFlush(SuitYaku):
 
 @dataclass
 class StraightFlush(SuitYaku):
-    base_value = 9
+    base_value: int = 9
 
     def __str__(self):
         return f"Straight Flush in {self.suit}, {self.high_card.value} high"
@@ -55,7 +55,7 @@ class StraightFlush(SuitYaku):
 
 @dataclass
 class Quads(Yaku):
-    base_value = 8
+    base_value: int = 8
 
     def __str__(self):
         return f"Quad {self.high_card.value}'s, {self.kickers[0].value} kicker"
@@ -63,7 +63,7 @@ class Quads(Yaku):
 
 @dataclass
 class FullHouse(Yaku):
-    base_value = 7
+    base_value: int = 7
 
     def __str__(self):
         return f"Full House, {self.high_card.value}'s and {self.second_high_card.value}'s"
@@ -71,15 +71,15 @@ class FullHouse(Yaku):
 
 @dataclass
 class Flush(SuitYaku):
-    base_value = 6
+    base_value: int = 6
 
     def __str__(self):
-        return f"Flush in {self.suit}, {self.high_card.value} high"
+        return f"Flush in {self.suit}, {self.high_card.value} high, {self._kickers_str()} kickers"
 
 
 @dataclass
 class Straight(Yaku):
-    base_value = 5
+    base_value: int = 5
 
     def __str__(self):
         return f"Straight, {self.high_card.value} high"
@@ -87,7 +87,7 @@ class Straight(Yaku):
 
 @dataclass
 class Set(Yaku):
-    base_value = 4
+    base_value: int = 4
 
     def __str__(self):
         return f"Set of {self.high_card.value}'s, {self._kickers_str()} kickers"
@@ -95,7 +95,7 @@ class Set(Yaku):
 
 @dataclass
 class TwoPair(Yaku):
-    base_value = 3
+    base_value: int = 3
 
     def __str__(self):
         return f"Two Pair, {self.high_card.value}'s and {self.second_high_card.value}'s, {self.kickers[0].value} kicker"
@@ -103,7 +103,7 @@ class TwoPair(Yaku):
 
 @dataclass
 class Pair(Yaku):
-    base_value = 2
+    base_value: int = 2
 
     def __str__(self):
         return f"Pair of {self.high_card.value}'s, {self._kickers_str()} kickers"
@@ -111,7 +111,7 @@ class Pair(Yaku):
 
 @dataclass
 class HighCard(Yaku):
-    base_value = 1
+    base_value: int = 0
 
     def __str__(self):
         return f"High Card {self.high_card.value}, {self._kickers_str()} kickers"

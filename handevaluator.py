@@ -57,7 +57,10 @@ class HandEvaluator:
         longest_suit = HandEvaluator._longest_suit(hand)
         if len(longest_suit) < 5:
             return None
-        return Flush(high_card=max(longest_suit), suit=longest_suit[0].suit)
+
+        high_card = max(longest_suit)
+        kickers = sorted(filter(lambda c: c != high_card, longest_suit), reverse=True)[:4]
+        return Flush(high_card=max(longest_suit), suit=longest_suit[0].suit, kickers=kickers)
 
     @staticmethod
     def check_straight(_hand: list[Card]) -> Yaku | None:
@@ -148,10 +151,26 @@ if __name__ == '__main__':
         yaku = HandEvaluator.evaluate(test_hand)
         print(f"{test[0]:45}{str(yaku):45}{test[1]:45}")
 
+    # TODO: Arrange more tough test cases!
     print("\n\nYaku comparison test")
+
     table_cards = hand_from_str("8h 8d Jc 6d 6s")
     player1 = hand_from_str("6h Js")
     player2 = hand_from_str("Jh Jd")
+
+    player1_yaku = HandEvaluator.evaluate(table_cards + player1)
+    player2_yaku = HandEvaluator.evaluate(table_cards + player2)
+
+    print(f"Player 1 has {player1_yaku}")
+    print(f"Player 2 has {player2_yaku}")
+    if player1_yaku > player2_yaku:
+        print("Player 1 wins!")
+    else:
+        print("Player 2 wins!")
+
+    table_cards = hand_from_str("8h 7h Jc 6h Th")
+    player1 = hand_from_str("2h Qh")
+    player2 = hand_from_str("Js Jd")
 
     player1_yaku = HandEvaluator.evaluate(table_cards + player1)
     player2_yaku = HandEvaluator.evaluate(table_cards + player2)

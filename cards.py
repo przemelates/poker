@@ -18,6 +18,8 @@ class Suit(int):
         return SUITS_SHORT[self.real]
 
     def __str__(self):
+        if self.real == -1:
+            return ""
         return SUITS_SHORT[self.real]
 
 
@@ -70,6 +72,10 @@ class Card:
 
     def __hash__(self):
         return (self.value + self.suit * 13).__hash__()
+
+    @staticmethod
+    def str_list(l):
+        return " ".join((str(c) for c in l))
 
 
 class DeckEmptyError(Exception):
