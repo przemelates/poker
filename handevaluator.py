@@ -147,3 +147,18 @@ if __name__ == '__main__':
         test_hand = hand_from_str(test[0])
         yaku = HandEvaluator.evaluate(test_hand)
         print(f"{test[0]:45}{str(yaku):45}{test[1]:45}")
+
+    print("\n\nYaku comparison test")
+    table_cards = hand_from_str("8h 8d Jc 6d 6s")
+    player1 = hand_from_str("6h Js")
+    player2 = hand_from_str("Jh Jd")
+
+    player1_yaku = HandEvaluator.evaluate(table_cards + player1)
+    player2_yaku = HandEvaluator.evaluate(table_cards + player2)
+
+    print(f"Player 1 has {player1_yaku}")
+    print(f"Player 2 has {player2_yaku}")
+    if player1_yaku > player2_yaku:
+        print("Player 1 wins!")
+    else:
+        print("Player 2 wins!")
