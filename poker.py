@@ -15,12 +15,16 @@ class Player:
     name: str
     chips: int = 1000
     is_active: bool = True
+    has_folded: bool = False
     can_react: bool = True
     is_dealer: bool = False
     cards: list[Card] | None = None
 
     def __hash__(self):
         return self.name.__hash__()
+
+    def __eq__(self, other):
+        return self.name == other.name
 
 
 class Game:
@@ -41,8 +45,23 @@ class Game:
     def iterate_players(self):
         cycled = cycle(self.players)
         dropped = dropwhile(lambda p: not p.is_dealer, cycled)
-        for player in dropwhile(lambda p: not p.is_active, dropped):
-            yield player
+        inactive_ctr = 0
+        for player in dropped:
+            if player.is_active:
+                yield player
+                continue
+            inactive_ctr += 1
+            if inactive_ctr > len(self.players):
+                return
+
+    def all_players(self):
+        for p in self.players:
+            yield p
+
+    def all_players_except(self, player: Player):
+        for p in self.players:
+            if p != player:
+                yield p
 
     def start(self):
         round = Round(self)
@@ -69,20 +88,19 @@ class Round:
         self.pot = 0
         self.game = game
         self.deck = Deck()
-        self.community_cards = []
+        self.community_cards = CardList()
         self.options = {
             "k": Option("Check", "C", self.check),
             "c": Option("Call", "C", self.call),
-            "x": Option("All-in", "X", self.fold),
-            "f": Option("Fold", "F", self.all_in),
-            "b": Option("Bet", "", lambda: None),
-            "h": Option("History", "H", self.history, is_breaking=False)
+            "x": Option("All-in", "X", self.all_in),
+            "f": Option("Fold", "F", self.fold),
+            "b": Option("Bet", "[Amount]", lambda: None),
+            "h": Option("History", "H", self.show_history, is_breaking=False)
         }
 
         self.bets = {p: 0 for p in self.game.players}
         self.log = []
-        self.yakus = {p: None for p in self.game.players}
-
+        self.yakus = {}
 
         for player in self.game.players:
             player.cards = self.deck.deal_many(2)
@@ -95,6 +113,8 @@ class Round:
         while True:
             for player in self.game.iterate_players():
                 if all((not p.can_react for p in self.game.players)):
+                    break
+                if all((not p.is_active for p in self.game.players)):
                     break
 
                 self.interface(player)
@@ -109,20 +129,15 @@ class Round:
                     if user_input in options.keys():
                         options[user_input].action(player)
                     elif all((char in '0123456789' for char in user_input)):
-                        size = int(user_input)
-                        if player.chips < size or size <= self.get_max_bet() - self.bets[player]:
-                            print("Inadmissible bet size")
-                            continue
-                        self.take_bet(player, size)
-                        self.log.append(f"{player.name} bets {size}")
-                        break
+                        if self.bet(player, int(user_input)):
+                            break
+                        continue
 
                     else:
                         print("Inadmissible action")
                         continue
 
                     if options[user_input].is_breaking:
-                        player.can_react = False
                         break
 
             end = self.next_phase()
@@ -155,7 +170,7 @@ class Round:
             return True
 
         self.community_cards.extend(cards)
-        self.log.append(f"Dealer reveals {' '.join((str(c) for c in cards))}")
+        self.log.append(f"Dealer reveals {cards}")
         return False
 
     def take_bet(self, player: Player, amount: int):
@@ -163,24 +178,41 @@ class Round:
         self.bets[player] += amount
         self.pot += amount
 
+    def bet(self, player: Player, size: int):
+        if player.chips < size or size <= self.get_max_bet() - self.bets[player]:
+            print("Inadmissible bet size")
+            return False
+
+        self.take_bet(player, size)
+        self.log.append(f"{player.name} bets {size}")
+        player.can_react = False
+        for p in self.game.all_players_except(player):
+            p.can_react = True
+        return True
+
     def check(self, player: Player):
         self.log.append(f"{player.name} checks")
+        player.can_react = False
 
     def call(self, player: Player):
         amount = self.get_max_bet() - self.bets[player]
         self.log.append(f"{player.name} calls {amount}")
         self.take_bet(player, amount)
+        player.can_react = False
 
     def fold(self, player: Player):
         self.log.append(f"{player.name} folds")
         player.is_active = False
+        player.can_react = False
+        player.has_folded = True
 
     def all_in(self, player: Player):
         self.log.append(f"{player.name} is all-in for {player.chips} more")
         self.take_bet(player, player.chips)
         player.is_active = False
+        player.can_react = False
 
-    def history(self, player):
+    def show_history(self, player):
         for entry in self.log:
             print(entry)
 
@@ -188,7 +220,7 @@ class Round:
         print("SHOWDOWN!")
         print(f"Community cards: {Card.str_list(self.community_cards)}")
         for player in self.game.players:
-            if not player.is_active:
+            if player.has_folded:
                 continue
             self.yakus[player] = HandEvaluator.evaluate(player.cards + self.community_cards)
             print(f"{player.name} has {Card.str_list(player.cards)} which makes a {self.yakus[player]}.")
@@ -198,13 +230,9 @@ class Round:
         winner.chips += self.pot
 
     def interface(self, player: Player):
-        print(
-        '----------------------------------------' + '\n'
-        + "SKAWINA HOLD'EM" + '\n' 
-        )
         print(f"Your cards: {' '.join((str(card) for card in player.cards))}" )
         print(f"Community cards: {self.community_cards}"+'\n')
-        self.history(player)
+        self.show_history(player)
 
         print(f"POT:{self.pot}")
         print(f"Current player: {player.name}")

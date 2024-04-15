@@ -9,6 +9,7 @@ CARD_VALUES_HONORS = range(8, 13)
 SUITS_SHORT = "♠♥♦♣"
 SUITS_LONG = ["Spades", "Hearts", "Diamonds", "Clubs"]
 CARD_VALUES_STR = "23456789TJQKA"
+SUITS_COLOR = ["\033[34m", "\033[31m", "\033[33m", "\033[32m"]
 
 
 class Suit(int):
@@ -51,7 +52,7 @@ class Card:
     Defines the string representation of a card, called by print()
     """
     def __str__(self):
-        return SUITS_SHORT[self.suit] + CARD_VALUES_STR[self.value]
+        return SUITS_COLOR[self.suit] + str(self.suit) + str(self.value) + "\033[39m"
 
     def __repr__(self):
         return str(self.suit) + str(self.value)
@@ -78,6 +79,12 @@ class Card:
         return " ".join((str(c) for c in l))
 
 
+@dataclass
+class CardList(list):
+    def __str__(self):
+        return " ".join((str(c) for c in self))
+
+
 class DeckEmptyError(Exception):
     pass
 
@@ -94,5 +101,8 @@ class Deck:
         card = self._deck.pop(index)
         return card
 
-    def deal_many(self, n):
-        return [self.deal_card() for _ in range(n)]
+    def deal_many(self, n: int) -> CardList:
+        card_list = CardList()
+        card_list.extend(self.deal_card() for _ in range(n))
+        return card_list
+
