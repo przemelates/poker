@@ -11,7 +11,7 @@ class Player:
     has_folded: bool = False
     cards = list()
     balance: int = 1000
-    has_acted =  {p: False for p in range(1,5)} ##TODO
+    has_acted =  {p: False for p in range(1,5)} 
     def __hash__(self) -> int:
         return self.name.__hash__()
     def __str__(self) -> str:
@@ -54,7 +54,7 @@ class Round(Game):
     ### Round-wide variables declaration ###
     colours = {"♦" : "Diamonds", "♥" : "Hearts","♣" : "Clubs", "♠" : "Spades"}
     values = {2: "Two", 3: "Three", 4:"Four", 5:"Five", 6:"Six", 7:"Seven", 8:"Eight", 9:"Nine", 10:"Ten", 11:"Jack", 12:"Queen", 13:"King", 14:"Ace"}
-    round_phases = {1:"Pre-bets",2:"Flop",3:"Turn",4:"River"}
+    round_phases = {1:"Pre-flop",2:"Flop",3:"Turn",4:"River"}
     community_cards = set()
     deck = set()
     round_phase = 1
@@ -79,7 +79,7 @@ class Round(Game):
         big_blind.balance -= Game.big_blind
         for i in self.players:
             i.balance -= Game.ante
-        self.pot = 0
+        self.pot = Game.big_blind + Game.small_blind
         for i in self.players:
             for j in Round.draw_cards(2):
                 i.cards.append(j)
@@ -98,17 +98,35 @@ class Round(Game):
         return names
     
     def get_next_player(self,player : Player):
-
+        p: Player
         if player.id != len(self.players) -1:
-            return self.players[player.id +1]
+            p = self.players[player.id +1]
+            if p.has_folded == True:
+                return self.get_next_player(p)
+            else:
+                return p
         else:
-            return self.players[0]
+            p = self.players[0]
+            if p.has_folded == True:
+                return self.get_next_player(p)
+            else:
+                return p
     
-    def get_previous_player(self,player : Player): 
+    def get_previous_player(self,player : Player):
+        p: Player 
         if player.id != 0:
-            return self.players[player.id - 1]
+            p = self.players[player.id - 1]
+            if p.has_folded == True:
+                self.get_previous_player(p)
+            else:
+                return p
+
         else:
-            return self.players[len(self.players)] - 1
+            p =  self.players[len(self.players)] - 1
+            if p.has_folded == True:
+                self.get_previous_player(p)
+            else:
+                return p
 
     
     def get_max_bet(self):
@@ -132,15 +150,18 @@ class Round(Game):
 
     def next_move(self, *args):
         self.Interface(args)
-        if (i == j for i,j in self.bets) and (0 not in self.bets) and (False not in [p.has_acted[self.round_phase] for p in self.players]): 
+        bets = list(self.bets.values())
+        if ([bets[i] == bets[i+1] for i in range(0,len(bets)-2)] == [True]) and (0 not in bets) and (False not in [p.has_acted[self.round_phase] for p in self.players]): 
             self.round_phase +=1
             print("Moving onto the next round phase...")
             if self.round_phase == 2:
                 for i in Round.draw_cards(3):
                     self.community_cards.add(i)
+                self.next_move()
             elif self.round_phase == 3 or self.round_phase ==4:
                 for i in Round.draw_cards(1):
                     self.community_cards.add(i)
+                self.next_move()
             else:
                 self.showdown()
 
@@ -176,6 +197,7 @@ class Round(Game):
             player.balance -= amount
             self.bets[player] +=amount
             self.pot += amount
+            player.has_acted[self.round_phase] = True
             self.next_player()
             self.next_move(f"{player} has bet {amount}")
         else:
@@ -183,17 +205,20 @@ class Round(Game):
     
     call = bet
 
-    def check(self,player):
-
+    def check(self,player:Player):
+        player.has_acted[self.round_phase] = True
         self.next_player()
         self.next_move(f"{player} has checked")
 
     def fold(self,player:Player):
+        for i in self.round_phases.keys():
+            player.has_acted[i] = True
         player.balance -= self.bets[player]
-        self.next_player()
         player.has_folded = True
+        del self.bets[player]
         if len(self.players) == 1:
             os.abort()
+        self.next_player()
         self.next_move(f"{player} has folded")
 
     def showdown(self):
@@ -211,19 +236,32 @@ class Round(Game):
         print(f"Your cards: {self.controlled_player.cards}" )
         print(f"Community cards: {self.community_cards}"+'\n')
         for i in self.players:
-            print(f"{i}: {i.name}, bets {self.bets[i]}")
-            if i == self.get_next_player(self.get_next_player(Game.dealer)):
-                print(" *BIG BLIND*" +'\n')
-            elif i == self.get_next_player(Game.dealer):
-                print(" *SMALL BLIND*"+'\n')
-            elif i == Game.dealer:
-                print(" *DEALER*"+'\n')
+            if(i.has_folded == False):
+                print(f"{i}: {i.balance}, bets {self.bets[i]}")
+                if i == self.get_next_player(self.get_next_player(Game.dealer)):
+                    print(" *BIG BLIND*" +'\n')
+                elif i == self.get_next_player(Game.dealer):
+                    print(" *SMALL BLIND*"+'\n')
+                elif i == Game.dealer:
+                    print(" *DEALER*"+'\n')
+                else:
+                    print('\n')
             else:
-                print('\n')
+                print(f"{i}: {i.balance} FOLDED")
+                if i == self.get_next_player(self.get_next_player(Game.dealer)):
+                    print(" *BIG BLIND*" +'\n')
+                elif i == self.get_next_player(Game.dealer):
+                    print(" *SMALL BLIND*"+'\n')
+                elif i == Game.dealer:
+                    print(" *DEALER*"+'\n')
+                else:
+                    print('\n')
+
         print(f"POT:{self.pot}")
         print(f"Current player: {self.current_player}")
+        print(f"Next player: {self.get_next_player(self.current_player)}")
         print(
-        '----------------------------------------' + '\n' 
+        '----------------------------------------' + '\n'
         )
         if len(args) !=0:
             for i in args:
@@ -235,11 +273,13 @@ class Round(Game):
 
 Game1 = Game(players)
 Round1 = Round(Game1)
+'''
 cards = Round.draw_cards(7)
 cards_translation = set()
 for i in cards:
     cards_translation.add(Round1.get_card_name(i))
 print(cards_translation)
+'''
 
 
 
