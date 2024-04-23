@@ -9,7 +9,7 @@ class Player:
     name: str
     id: int = 0
     has_folded: bool = False
-    cards = list()
+    cards = []
     balance: int = 1000
     has_acted =  {p: False for p in range(1,5)} 
     def __hash__(self) -> int:
@@ -55,9 +55,9 @@ class Round(Game):
     colours = {"♦" : "Diamonds", "♥" : "Hearts","♣" : "Clubs", "♠" : "Spades"}
     values = {2: "Two", 3: "Three", 4:"Four", 5:"Five", 6:"Six", 7:"Seven", 8:"Eight", 9:"Nine", 10:"Ten", 11:"Jack", 12:"Queen", 13:"King", 14:"Ace"}
     round_phases = {1:"Pre-flop",2:"Flop",3:"Turn",4:"River"}
+    round_phase: int
     community_cards = set()
     deck = set()
-    round_phase = 1
     players: list[Player]
     current_player : Player
     pot = 0
@@ -70,6 +70,7 @@ class Round(Game):
 
     def __init__(self, game) -> None:
         print("Round begins...")
+        self.round_phase = 1
         Game.ante *=2
         self.players: list[Player] = game.players
         small_blind = self.get_next_player(game.dealer)
@@ -80,9 +81,16 @@ class Round(Game):
         for i in self.players:
             i.balance -= Game.ante
         self.pot = Game.big_blind + Game.small_blind
+    
         for i in self.players:
-            for j in Round.draw_cards(2):
-                i.cards.append(j)
+            print(f"Drawing for {i.name}")
+            for x in self.draw_cards(2):
+                i.cards.append(x)
+            print(f"Drawn:{i.cards}")
+        
+        
+                
+            
         self.bets = dict(zip(self.players,[0 for i in range(len(self.players))]))
         self.bets[small_blind] += Game.small_blind
         self.bets[big_blind] += Game.big_blind
@@ -132,15 +140,14 @@ class Round(Game):
     def get_max_bet(self):
         return max(self.bets.values())
         
-    def draw_cards(no):
-        cards = list()
-        deck_copy = copy.deepcopy(Round.deck)
+    def draw_cards(self,no):
         for i in range(no):
-            x = random.choice(list(deck_copy))
-            cards.append(x)
-            deck_copy.remove(x)
+            x = random.choice(list(self.deck))
+            self.deck.remove(x)
+            yield x
        
-        return cards
+       
+    
     
     ### Round course and administration ###
 
@@ -151,15 +158,17 @@ class Round(Game):
     def next_move(self, *args):
         self.Interface(args)
         bets = list(self.bets.values())
-        if ([bets[i] == bets[i+1] for i in range(0,len(bets)-2)] == [True]) and (0 not in bets) and (False not in [p.has_acted[self.round_phase] for p in self.players]): 
+        if (False not in [bets[i] == bets[i+1] for i in range(0,len(bets)-1)]) and (0 not in bets) and (False not in [p.has_acted[self.round_phase] for p in self.players]): 
             self.round_phase +=1
             print("Moving onto the next round phase...")
             if self.round_phase == 2:
-                for i in Round.draw_cards(3):
+                print("Flop")
+                for i in self.draw_cards(3):
                     self.community_cards.add(i)
                 self.next_move()
             elif self.round_phase == 3 or self.round_phase ==4:
-                for i in Round.draw_cards(1):
+                print("Turn/River")
+                for i in self.draw_cards(1):
                     self.community_cards.add(i)
                 self.next_move()
             else:
@@ -173,7 +182,7 @@ class Round(Game):
                 self.fold(self.current_player)
             elif input1 == "X":
                 self.bet(self.current_player, self.current_player.balance)
-            elif (i in r'[0-9]' for i in input1):
+            elif False not in [i in [str(j) for j in range(10)] for i in input1]:
                 self.bet(self.current_player, int(input1))
             else:
                 self.next_move("Inadmissible action")
@@ -186,7 +195,7 @@ class Round(Game):
                 self.check(self.current_player)
             elif input1 == "X":
                 self.bet(self.current_player, self.current_player.balance)
-            elif (i in r'[0-9]' for i in input1):
+            elif False not in [i in [str(j) for j in range(10)] for i in input1]:
                 self.bet(self.current_player, int(input1))
             else:
                 self.next_move("Inadmissible action")
@@ -215,13 +224,14 @@ class Round(Game):
             player.has_acted[i] = True
         player.balance -= self.bets[player]
         player.has_folded = True
-        del self.bets[player]
+        del self.bets[player] 
         if len(self.players) == 1:
             os.abort()
         self.next_player()
         self.next_move(f"{player} has folded")
 
     def showdown(self):
+        print("Showdown")
         Game.big_blind *=2 
         Game.small_blind *=2
         Game.dealer = self.get_next_player(Game.dealer)
@@ -233,7 +243,7 @@ class Round(Game):
         '----------------------------------------' + '\n'
         + "SKAWINA HOLD'EM" + '\n' 
         )
-        print(f"Your cards: {self.controlled_player.cards}" )
+        print(f"Your cards: {[(i.name, i.cards) for i in self.players]}" )
         print(f"Community cards: {self.community_cards}"+'\n')
         for i in self.players:
             if(i.has_folded == False):
@@ -259,27 +269,26 @@ class Round(Game):
 
         print(f"POT:{self.pot}")
         print(f"Current player: {self.current_player}")
-        print(f"Next player: {self.get_next_player(self.current_player)}")
         print(
         '----------------------------------------' + '\n'
         )
         if len(args) !=0:
             for i in args:
                 print(f"Attention:{str(i)}")
+        
 
 
 
        
+       
 
 Game1 = Game(players)
 Round1 = Round(Game1)
-'''
-cards = Round.draw_cards(7)
-cards_translation = set()
-for i in cards:
-    cards_translation.add(Round1.get_card_name(i))
-print(cards_translation)
-'''
+
+
+
+
+
 
 
 
