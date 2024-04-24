@@ -1,6 +1,7 @@
-import time, threading, copy, random, re, os
+import time, threading, keyboard, os
 from dataclasses import dataclass
 from hand_evaluation import *
+from card import *
 
 
 
@@ -9,7 +10,7 @@ class Player:
     name: str
     id: int = 0
     has_folded: bool = False
-    cards = []
+    cards = list() 
     balance: int = 1000
     has_acted =  {p: False for p in range(1,5)} 
     def __hash__(self) -> int:
@@ -20,7 +21,7 @@ class Player:
 players = [Player("Roe"),Player("Janus"),Player("Szynek")]
 
 class Game:
-    time = 0
+    gametime = 0
     ante = 10
     small_blind = 20
     big_blind = 40 
@@ -28,47 +29,48 @@ class Game:
     controlled_player: Player
  
 
-
     def __init__(self, players: list[Player]) -> None:
+         thread1 = threading.Thread(target = Game._time)
+         thread1.start()
+         thread2 = threading.Thread(target = Game.exit)
+         thread2.start()
          self.players = players
          for i in self.players:
             i.id = self.players.index(i)     
          Game.controlled_player = self.players[0]
-         self.time = 0
          Game.dealer = self.players[0]
+
+    def exit():
+         while(True):
+            if(keyboard.read_key() == 'esc'):
+                os._exit(0)
          
-    def display_time(self):
+    def _time():
         while(True):
-            time.sleep(1)
-            self.time+=1
-            print(self.time)
-          
+            time.sleep(1)        
+            Game.gametime +=1
+        
     def display_players(self):
          for i in self.players:
-              print(i.name)
+              print(i)
         
-
 
 class Round(Game):
 
     ### Round-wide variables declaration ###
-    colours = {"♦" : "Diamonds", "♥" : "Hearts","♣" : "Clubs", "♠" : "Spades"}
-    values = {2: "Two", 3: "Three", 4:"Four", 5:"Five", 6:"Six", 7:"Seven", 8:"Eight", 9:"Nine", 10:"Ten", 11:"Jack", 12:"Queen", 13:"King", 14:"Ace"}
+
     round_phases = {1:"Pre-flop",2:"Flop",3:"Turn",4:"River"}
     round_phase: int
     community_cards = set()
-    deck = set()
+    deck = Deck()
     players: list[Player]
     current_player : Player
     pot = 0
     player_cards = dict()
     bets = dict()
 
-    for i in values.keys():
-        for j in colours.keys():
-            deck.add((i,j))        # Cards always in format tuple(value,colour)
 
-    def __init__(self, game) -> None:
+    def __init__(self, game: Game) -> None:
         print("Round begins...")
         self.round_phase = 1
         Game.ante *=2
@@ -81,16 +83,16 @@ class Round(Game):
         for i in self.players:
             i.balance -= Game.ante
         self.pot = Game.big_blind + Game.small_blind
-    
+        
         for i in self.players:
+            cards = []
             print(f"Drawing for {i.name}")
-            for x in self.draw_cards(2):
-                i.cards.append(x)
-            print(f"Drawn:{i.cards}")
+            for x in self.deck.deal_cards(2):
+                    cards.append(x)
+            cards = cards[-2:]
+            print(f"Drawn:{cards}")
+            i.cards = cards
         
-        
-                
-            
         self.bets = dict(zip(self.players,[0 for i in range(len(self.players))]))
         self.bets[small_blind] += Game.small_blind
         self.bets[big_blind] += Game.big_blind
@@ -98,12 +100,6 @@ class Round(Game):
         
 
     ### Misc tools ###
-
-    def get_card_name(self,cards):
-        names = set()
-        for i in cards:
-            names.add((self.values[i[0]] + " of " + self.colours[i[1]]))
-        return names
     
     def get_next_player(self,player : Player):
         p: Player
@@ -139,16 +135,8 @@ class Round(Game):
     
     def get_max_bet(self):
         return max(self.bets.values())
-        
-    def draw_cards(self,no):
-        for i in range(no):
-            x = random.choice(list(self.deck))
-            self.deck.remove(x)
-            yield x
-       
-       
     
-    
+          
     ### Round course and administration ###
 
     def next_player(self):
@@ -163,12 +151,12 @@ class Round(Game):
             print("Moving onto the next round phase...")
             if self.round_phase == 2:
                 print("Flop")
-                for i in self.draw_cards(3):
+                for i in self.deck.deal_cards(3):
                     self.community_cards.add(i)
                 self.next_move()
             elif self.round_phase == 3 or self.round_phase ==4:
                 print("Turn/River")
-                for i in self.draw_cards(1):
+                for i in self.deck.deal_cards(1):
                     self.community_cards.add(i)
                 self.next_move()
             else:
@@ -225,24 +213,27 @@ class Round(Game):
         player.balance -= self.bets[player]
         player.has_folded = True
         del self.bets[player] 
-        if len(self.players) == 1:
-            os.abort()
-        self.next_player()
-        self.next_move(f"{player} has folded")
+        if ([i.has_folded for i in self.players].count(False)) == 1:
+            os._exit(0)
+        else:
+            self.next_player()
+            self.next_move(f"{player} has folded")
 
     def showdown(self):
         print("Showdown")
         Game.big_blind *=2 
         Game.small_blind *=2
         Game.dealer = self.get_next_player(Game.dealer)
+        os._exit(0)
 
     ##############################################
     
     def Interface(self, *args):
-        print(
+        print( '\n' +
         '----------------------------------------' + '\n'
         + "SKAWINA HOLD'EM" + '\n' 
         )
+        print(f"Time elapsed: {SUITS_COLOR['♥']}{Game.gametime}\033[39m")
         print(f"Your cards: {[(i.name, i.cards) for i in self.players]}" )
         print(f"Community cards: {self.community_cards}"+'\n')
         for i in self.players:
@@ -269,21 +260,18 @@ class Round(Game):
 
         print(f"POT:{self.pot}")
         print(f"Current player: {self.current_player}")
-        print(
-        '----------------------------------------' + '\n'
-        )
         if len(args) !=0:
             for i in args:
                 print(f"Attention:{str(i)}")
+        print(
+        '----------------------------------------' + '\n'
+        )
         
-
-
-
-       
-       
+        
 
 Game1 = Game(players)
 Round1 = Round(Game1)
+
 
 
 
