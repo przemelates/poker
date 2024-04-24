@@ -1,13 +1,12 @@
 import copy
-class HandEvaluator():
+import card
+class HandEvaluator:
      
-     colours = {"D": "♦", "H": "♣", "C": "♣", "S": "♠"}
-     values = {2: "Two", 3: "Three", 4:"Four", 5:"Five", 6:"Six", 7:"Seven", 8:"Eight", 9:"Nine", 10:"Ten", 11:"Jack", 12:"Queen", 13:"King", 14:"Ace"}
      
      ##Hand strength evaluation tools
      @staticmethod
      def check_flush(hand):
-        for colour in HandEvaluator.colours.keys():
+        for colour in card.COLOURS.keys():
             hand1 = copy.deepcopy(hand)
             to_remove = set()
             for i in hand1:
@@ -57,7 +56,7 @@ class HandEvaluator():
             return False
         else:
             royal_flush_sets = []
-            for i in HandEvaluator.colours.keys():
+            for i in card.COLOURS.keys():
                 royal_flush_set = set()
                 royal_flush_sets.append(royal_flush_set)
                 for j in range(10,15):
@@ -109,29 +108,29 @@ class HandEvaluator():
             print("Royal Flush")
             return 140
         elif HandEvaluator.check_straight_flush(hand) != False:
-            print(f"Straight Flush, {HandEvaluator.values[HandEvaluator.check_straight_flush(hand)[1]]} high")
+            print(f"Straight Flush, {card.VALUES[HandEvaluator.check_straight_flush(hand)[1]]} high")
             return HandEvaluator.check_straight_flush(hand)[1] + 8*14
         elif HandEvaluator.check_pairs(hand,4)!= False:
-            print(f"Four of a Kind, {HandEvaluator.values[HandEvaluator.check_pairs(hand,4)[2]]} high")
+            print(f"Four of a Kind, {card.VALUES[HandEvaluator.check_pairs(hand,4)[2]]} high")
             return HandEvaluator.check_pairs(hand,4)[2] + 7*14
         elif HandEvaluator.check_full(hand)!= False:
-            print(f"Full house, {HandEvaluator.values[HandEvaluator.check_full(hand)[1]]} high")
+            print(f"Full house, {card.VALUES[HandEvaluator.check_full(hand)[1]]} high")
             return HandEvaluator.check_full(hand)[1] + 0.1*HandEvaluator.check_full(hand)[2] + 6*14
         elif HandEvaluator.check_flush(hand)!= False:
-            print(f"Flush, {HandEvaluator.values[HandEvaluator.check_flush(hand)[1]]} high")
+            print(f"Flush, {card.VALUES[HandEvaluator.check_flush(hand)[1]]} high")
             return HandEvaluator.check_flush(hand)[1] + 5*14
         elif HandEvaluator.check_straight(hand)!= False:
-            print(f"Straight, {HandEvaluator.values[HandEvaluator.check_straight(hand)[1]]} high")
+            print(f"Straight, {card.VALUES[HandEvaluator.check_straight(hand)[1]]} high")
             return HandEvaluator.check_straight(hand)[1] + 4*14
         elif HandEvaluator.check_pairs(hand,3)!= False:
-            print(f"Three of a kind, {HandEvaluator.values[HandEvaluator.check_pairs(hand,3)[2]]} high")
+            print(f"Three of a kind, {card.VALUES[HandEvaluator.check_pairs(hand,3)[2]]} high")
             return HandEvaluator.check_pairs(hand,3)[2] + 3*14
         elif HandEvaluator.check_pairs(hand,2)!= False and HandEvaluator.check_pairs(hand,2)[1] == 2:
-            print(f"Two pairs, {HandEvaluator.values[HandEvaluator.check_pairs(hand,2)[2]]} high")
+            print(f"Two pairs, {card.VALUES[HandEvaluator.check_pairs(hand,2)[2]]} high")
             return HandEvaluator.check_pairs(hand,2)[2] + 2*14
         elif HandEvaluator.check_pairs(hand,2) != False:
-            print(f"Pair, {HandEvaluator.values[HandEvaluator.check_pairs(hand,2)[2]]} high")
+            print(f"Pair, {card.VALUES[HandEvaluator.check_pairs(hand,2)[2]]} high")
             return HandEvaluator.check_pairs(hand,2)[2] + 14
         else:
-            print(f"{HandEvaluator.values[HandEvaluator.check_high_card(hand)]} high")
+            print(f"{card.VALUES[HandEvaluator.check_high_card(hand)]} high")
             return HandEvaluator.check_high_card(hand)
