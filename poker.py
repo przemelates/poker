@@ -12,13 +12,19 @@ class Player:
     has_folded: bool = False
     cards = list() 
     balance: int = 1000
-    has_acted =  {p: False for p in range(1,5)} 
+    has_acted  =  dict({p: False for p in range(1,5)}) 
     def __hash__(self) -> int:
         return self.name.__hash__()
     def __str__(self) -> str:
         return self.name
+    
+    def reset(self):
+        self.has_folded = False
+        self.has_acted = {p: False for p in range(1,5)} 
 
 players = [Player("Roe"),Player("Janus"),Player("Szynek")]
+for i in players:
+    i.reset()
 
 class Game:
     gametime = 0
@@ -72,14 +78,16 @@ class Round(Game):
 
     def __init__(self, game: Game) -> None:
         print("Round begins...")
+        self.community_cards = set()
+        self.game = game
         self.round_phase = 1
         Game.ante *=2
         self.players: list[Player] = game.players
-        small_blind = self.get_next_player(game.dealer)
-        big_blind = self.get_next_player(self.get_next_player(game.dealer))
-        self.current_player = self.get_next_player(big_blind)
-        small_blind.balance -= Game.small_blind
-        big_blind.balance -= Game.big_blind
+        self._small_blind = self.get_next_player(game.dealer)
+        self._big_blind = self.get_next_player(self.get_next_player(game.dealer))
+        self.current_player = self.get_next_player(self._big_blind)
+        self._small_blind.balance -= Game.small_blind
+        self._big_blind.balance -= Game.big_blind
         for i in self.players:
             i.balance -= Game.ante
         self.pot = Game.big_blind + Game.small_blind
@@ -94,8 +102,8 @@ class Round(Game):
             i.cards = cards
         
         self.bets = dict(zip(self.players,[0 for i in range(len(self.players))]))
-        self.bets[small_blind] += Game.small_blind
-        self.bets[big_blind] += Game.big_blind
+        self.bets[self._small_blind] += Game.small_blind
+        self.bets[self._big_blind] += Game.big_blind
         self.next_move()
         
 
@@ -136,6 +144,17 @@ class Round(Game):
     def get_max_bet(self):
         return max(self.bets.values())
     
+    def get_actions(self, player : Player):
+        if player.has_folded == True:
+            return None
+        else:
+            actions = list()
+            if self.bets[player] < self.get_max_bet():
+                actions.append(self.call(player, self.get_max_bet() - self.bets[player]), self.fold(player), self.bet(player, x := random.randint(self.big_blind,player.balance)) )
+            else:
+                actions.append(self.check(player), self.bet(player, x := random.randint(self.big_blind,player.balance)))
+
+        return actions
           
     ### Round course and administration ###
 
@@ -153,11 +172,13 @@ class Round(Game):
                 print("Flop")
                 for i in self.deck.deal_cards(3):
                     self.community_cards.add(i)
+                self.current_player = self.get_next_player(self._big_blind)
                 self.next_move()
             elif self.round_phase == 3 or self.round_phase ==4:
                 print("Turn/River")
                 for i in self.deck.deal_cards(1):
                     self.community_cards.add(i)
+                self.current_player = self.get_next_player(self._big_blind)
                 self.next_move()
             else:
                 self.showdown()
@@ -190,13 +211,13 @@ class Round(Game):
 
 
     def bet(self,player: Player,amount):
-        if player.balance >=amount:
+        if player.balance >=amount and amount+self.bets[player] >= self.get_max_bet():
             player.balance -= amount
             self.bets[player] +=amount
             self.pot += amount
             player.has_acted[self.round_phase] = True
             self.next_player()
-            self.next_move(f"{player} has bet {amount}")
+            self.next_move(f"{player} bets {amount}")
         else:
             self.next_move("Inadmissible bet size")
     
@@ -205,26 +226,51 @@ class Round(Game):
     def check(self,player:Player):
         player.has_acted[self.round_phase] = True
         self.next_player()
-        self.next_move(f"{player} has checked")
+        self.next_move(f"{player} checks")
 
     def fold(self,player:Player):
         for i in self.round_phases.keys():
             player.has_acted[i] = True
-        player.balance -= self.bets[player]
         player.has_folded = True
         del self.bets[player] 
         if ([i.has_folded for i in self.players].count(False)) == 1:
-            os._exit(0)
+            self.showdown()
         else:
             self.next_player()
-            self.next_move(f"{player} has folded")
+            self.next_move(f"{player} folds")
 
     def showdown(self):
-        print("Showdown")
+        print(f"{SUITS_COLOR['♥']}Showdown\n\033[39m")
         Game.big_blind *=2 
         Game.small_blind *=2
         Game.dealer = self.get_next_player(Game.dealer)
-        os._exit(0)
+        hands_values = dict(zip(self.players,[0 for i in range(len(self.players))]))
+        for i in self.players:
+            if i.has_folded == False:
+                hand = i.cards + list(self.community_cards)
+                print(f"{i}:", end="")
+                x = HandEvaluator.get_hand_value(hand)
+                hands_values[i] = x
+        self.pot = self.pot/(list(hands_values.values()).count(max(hands_values.values())))
+        for i in self.players:
+            if hands_values[i] == max(hands_values.values()):
+                i.balance += self.pot
+                print(f"\n{i} wins the pot: {self.pot}")
+
+        def play_next(self):
+            print("Play next round?\nY/N")
+            input1 = input()
+            if input1 == "Y":
+                for i in players:
+                    i.reset()
+                Game_n = Game(players)
+                Round_n = Round(Game_n)
+            elif input1 == "N":
+                os._exit(0)
+            else:
+                play_next(self)
+        play_next(self)
+
 
     ##############################################
     
