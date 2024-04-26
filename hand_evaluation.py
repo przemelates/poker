@@ -5,37 +5,37 @@ class HandEvaluator:
      
      ##Hand strength evaluation tools
      @staticmethod
-     def check_flush(hand):
+     def check_flush(hand : list[card.Card]):
         for colour in card.COLOURS.keys():
             hand1 = copy.deepcopy(hand)
             to_remove = set()
             for i in hand1:
-                if i[1] != colour:
+                if i.suit != colour:
                     to_remove.add(i)
             for i in to_remove:
                 hand1.remove(i)
             if len(hand1) == 5:
-                top = max(hand1,key = lambda i: i[0])
-                return True, top[0]
+                top = max(hand1,key = lambda i: i.value)
+                return True, top.value
             else:
                 continue
         return False
      
      @staticmethod
-     def check_straight(hand):
+     def check_straight(hand : list[card.Card]):
         flush_array = list(hand)
-        flush_array.sort(key = lambda i: i[0])  # Sort by first element
+        flush_array.sort(key = lambda i: i.value)  # Sort by first element
         streak = 1
         excluded = set()
         for i in range(len(flush_array)-1,0,-1):
-             if(flush_array[i][0] == flush_array[i-1][0]+1):
+             if(flush_array[i].value == flush_array[i-1].value+1):
                 streak+=1
                 if streak == 5:
                     for i in excluded:
                         flush_array.remove(i)
-                    top = max(flush_array, key = lambda i: i[0])
-                    return True, top[0]
-             elif(flush_array[i][0] == flush_array[i-1][0]):
+                    top = max(flush_array, key = lambda i: i.value)
+                    return True, top.value
+             elif(flush_array[i].value == flush_array[i-1].value):
                 continue
              else:
                 streak = 1
@@ -44,14 +44,14 @@ class HandEvaluator:
 
     
      @staticmethod
-     def check_straight_flush(hand):
+     def check_straight_flush(hand : list[card.Card]):
         if HandEvaluator.check_flush(hand)!= False and HandEvaluator.check_straight(hand)!= False:
             return True, HandEvaluator.check_flush(hand)[1]
         else:
             return False
            
      @staticmethod   
-     def check_royal_flush(hand):
+     def check_royal_flush(hand: list[card.Card]):
         if HandEvaluator.check_straight_flush(hand) == False:
             return False
         else:
@@ -60,31 +60,31 @@ class HandEvaluator:
                 royal_flush_set = set()
                 royal_flush_sets.append(royal_flush_set)
                 for j in range(10,15):
-                    royal_flush_set.add((j,i))
+                    royal_flush_set.add(card.Card(i,j))
             for i in royal_flush_sets:
                 if i in hand:
                     return True
             return False
         
      @staticmethod   
-     def check_full(hand):
+     def check_full(hand : list[card.Card]):
         if HandEvaluator.check_pairs(hand,3)!= False and HandEvaluator.check_pairs(hand,2)!= False:
             return True, HandEvaluator.check_pairs(hand,3)[2], HandEvaluator.check_pairs(hand,2)[2]
         else:
             return False
         
      @staticmethod   
-     def check_multiples(hand) -> dict :
+     def check_multiples(hand: list[card.Card]) -> dict :
         count = dict()
         for i in hand:
-            if i[0] not in count.keys():
-                count[i[0]] = 1
+            if i.value not in count.keys():
+                count[i.value] = 1
             else:
-                count[i[0]] +=1
+                count[i.value] +=1
         return count
      
      @staticmethod
-     def check_pairs(hand,size):
+     def check_pairs(hand: list[card.Card],size):
         max_ = max(HandEvaluator.check_multiples(hand).values())
         if max_ != size:
             return False
@@ -96,14 +96,14 @@ class HandEvaluator:
                 return True, values.count(max_), keys[i] # How many n-sized card multiples are in hand, what is the highest-value multiplied card
     
      @staticmethod
-     def check_high_card(hand):
+     def check_high_card(hand: list[card.Card]):
         flush_array = list(hand)
-        flush_array.sort(key = lambda i: i[0])
-        top = max(flush_array, key = lambda i: i[0])
-        return top[0]
+        flush_array.sort(key = lambda i: i.value)
+        top = max(flush_array, key = lambda i: i.value)
+        return top.value
      
      @staticmethod
-     def get_hand_value(hand):
+     def get_hand_value(hand: list[card.Card]):
         if HandEvaluator.check_royal_flush(hand) == True:
             print("Royal Flush")
             return 140
