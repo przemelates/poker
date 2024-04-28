@@ -4,7 +4,6 @@ from hand_evaluation import *
 from card import *
 
 
-
 @dataclass
 class Player:
     name: str
@@ -20,14 +19,21 @@ class Player:
     
     def reset(self):
         self.has_folded = False
-        self.has_acted = {p: False for p in range(1,5)} 
+        self.has_acted = {p: False for p in range(1,5)}
+
+    def check_allin(self):
+        if self.balance == 0:
+            self.has_acted = dict({p: True for p in range(1,5)})
+            return f"{SUITS_COLOR['♥']}ALL IN\033[39m"
+        else:
+            return ""
 
 players = [Player("Roe"),Player("Janus"),Player("Szynek")]
 for i in players:
     i.reset()
 
 class Game:
-    gametime = 0
+    time_0 : float
     ante = 10
     small_blind = 20
     big_blind = 40 
@@ -36,8 +42,7 @@ class Game:
  
 
     def __init__(self, players: list[Player]) -> None:
-         thread1 = threading.Thread(target = Game._time)
-         thread1.start()
+         self.time_0 = time.time()
          thread2 = threading.Thread(target = Game.exit)
          thread2.start()
          self.players = players
@@ -50,11 +55,6 @@ class Game:
          while(True):
             if(keyboard.read_key() == 'esc'):
                 os._exit(0)
-         
-    def _time():
-        while(True):
-            time.sleep(1)        
-            Game.gametime +=1
         
     def display_players(self):
          for i in self.players:
@@ -107,7 +107,7 @@ class Round(Game):
         self.next_move()
         
 
-    ### Misc tools ###
+    ### Getters ###
     
     def get_next_player(self,player : Player):
         p: Player
@@ -150,9 +150,9 @@ class Round(Game):
         else:
             actions = list()
             if self.bets[player] < self.get_max_bet():
-                actions.append(self.call(player, self.get_max_bet() - self.bets[player]), self.fold(player), self.bet(player, x := random.randint(self.big_blind,player.balance)) )
+                actions.append(self.call(player, self.get_max_bet() - self.bets[player]), self.fold(player), self.bet(player, x := random.randint(self.get_max_bet(),player.balance)) )
             else:
-                actions.append(self.check(player), self.bet(player, x := random.randint(self.big_blind,player.balance)))
+                actions.append(self.check(player), self.bet(player, x := random.randint(self.get_max_bet(),player.balance)))
 
         return actions
           
@@ -216,6 +216,7 @@ class Round(Game):
             self.bets[player] +=amount
             self.pot += amount
             player.has_acted[self.round_phase] = True
+            player.check_allin()
             self.next_player()
             self.next_move(f"{player} bets {amount}")
         else:
@@ -256,6 +257,18 @@ class Round(Game):
             if hands_values[i] == max(hands_values.values()):
                 i.balance += self.pot
                 print(f"\n{i} wins the pot: {self.pot}")
+        
+        players_copy = copy.deepcopy(self.players)
+        for i in self.players:
+            if i.balance == 0:
+                players_copy.remove(i)
+                print(f"{i} busts out!")
+
+        players = players_copy
+
+        if len(players) == 1:
+            print(f"\033[96m{players[0]} wins the game, cheers\033[39m")
+            os._exit(0)
 
         def play_next(self):
             print("Play next round?\nY/N")
@@ -279,12 +292,12 @@ class Round(Game):
         '----------------------------------------' + '\n'
         + "SKAWINA HOLD'EM" + '\n' 
         )
-        print(f"Time elapsed: {SUITS_COLOR['♥']}{Game.gametime}\033[39m")
+        print(f"Time elapsed: {SUITS_COLOR['♥']}{round(time.time() - self.game.time_0,2)}\033[39m")
         print(f"Your cards: {[(i.name, i.cards) for i in self.players]}" )
         print(f"Community cards: {self.community_cards}"+'\n')
         for i in self.players:
             if(i.has_folded == False):
-                print(f"{i}: {i.balance}, bets {self.bets[i]}")
+                print(f"{i}: {i.balance}, bets {self.bets[i]} {i.check_allin()}")
                 if i == self.get_next_player(self.get_next_player(Game.dealer)):
                     print(" *BIG BLIND*" +'\n')
                 elif i == self.get_next_player(Game.dealer):
