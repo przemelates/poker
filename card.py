@@ -1,8 +1,10 @@
 import random
+
 COLOURS = {"♦" : "Diamonds", "♥" : "Hearts","♣" : "Clubs", "♠" : "Spades"}
 VALUES = {2: "Two", 3: "Three", 4:"Four", 5:"Five", 6:"Six", 7:"Seven", 8:"Eight", 9:"Nine", 10:"Ten", 11:"Jack", 12:"Queen", 13:"King", 14:"Ace"}
 VALUES_STR = dict(zip(list(VALUES.keys()),[i for i in "23456789TJQKA"]))
 SUITS_COLOR = {"♦" : "\033[34m",  "♥" : "\033[31m", "♣" : "\033[33m", "♠" : "\033[32m"}
+
 
 class Card:
     suit : str
