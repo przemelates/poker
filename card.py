@@ -21,6 +21,7 @@ class Card:
     def __repr__(self) -> str:
         return f"{SUITS_COLOR[self.suit]}{VALUES_STR[self.value]}{self.suit}\033[39m "
 
+
 class Deck:
     deck : list[Card] = list()
     def __init__(self):

@@ -2,7 +2,7 @@ import time, threading, keyboard, os
 from dataclasses import dataclass
 from hand_evaluation import *
 from card import *
-
+from poker_AI import*
 
 @dataclass
 class Player:
@@ -11,7 +11,10 @@ class Player:
     has_folded: bool = False
     cards = list() 
     balance: int = 1000
-    has_acted  =  dict({p: False for p in range(1,5)}) 
+    has_acted  =  dict({p: False for p in range(1,5)})
+    position : int = 0 
+    positions = {9:"Big blind",8:"Small blind", 7:"Dealer", 6: "CO", 5:"MP", 4:"UTG", 3:"UTG-1", 2:"UTG-2", 1:"UTG-3"}
+
     def __hash__(self) -> int:
         return self.name.__hash__()
     def __str__(self) -> str:
@@ -21,6 +24,12 @@ class Player:
         self.has_folded = False
         self.has_acted = {p: False for p in range(1,5)}
 
+    def cycle_position(self):
+        if self.position +1 > 9:
+            self.position = 10-len(players)
+        else:
+            self.position +=1
+
     def check_allin(self):
         if self.balance == 0:
             self.has_acted = dict({p: True for p in range(1,5)})
@@ -28,7 +37,7 @@ class Player:
         else:
             return ""
 
-players = [Player("Roe"),Player("Janus"),Player("Szynek")]
+players = [Player("Roe", position= 7 ),Player("Janus", position= 8),Player("Szynek", position= 9)]
 for i in players:
     i.reset()
 
@@ -70,7 +79,8 @@ class Round(Game):
     community_cards = set()
     deck = Deck()
     players: list[Player]
-    current_player : Player
+    current_player : Player 
+    big_blind_player : Player 
     pot = 0
     player_cards = dict()
     bets = dict()
@@ -82,15 +92,23 @@ class Round(Game):
         self.game = game
         self.round_phase = 1
         Game.ante *=2
+        self.pot = Game.big_blind + Game.small_blind
         self.players: list[Player] = game.players
-        self._small_blind = self.get_next_player(game.dealer)
-        self._big_blind = self.get_next_player(self.get_next_player(game.dealer))
-        self.current_player = self.get_next_player(self._big_blind)
-        self._small_blind.balance -= Game.small_blind
-        self._big_blind.balance -= Game.big_blind
+        self.bets = dict(zip(self.players,[0 for i in range(len(self.players))]))
+
         for i in self.players:
             i.balance -= Game.ante
-        self.pot = Game.big_blind + Game.small_blind
+            if(i.position == 10-len(players)):
+                self.current_player = i
+            if(i.position == 8):
+                i.balance -= Game.small_blind
+                self.bets[i] += Game.small_blind
+            elif(i.position == 9):
+                i.balance -=Game.big_blind
+                self.bets[i] +=Game.big_blind
+                self.big_blind_player = i
+            else:
+                continue
         
         for i in self.players:
             cards = []
@@ -100,13 +118,9 @@ class Round(Game):
             cards = cards[-2:]
             print(f"Drawn:{cards}")
             i.cards = cards
-        
-        self.bets = dict(zip(self.players,[0 for i in range(len(self.players))]))
-        self.bets[self._small_blind] += Game.small_blind
-        self.bets[self._big_blind] += Game.big_blind
+
         self.next_move()
         
-
     ### Getters ###
     
     def get_next_player(self,player : Player):
@@ -144,19 +158,22 @@ class Round(Game):
     def get_max_bet(self):
         return max(self.bets.values())
     
-    def get_actions(self, player : Player):
-        if player.has_folded == True:
-            return None
-        else:
-            actions = list()
-            if self.bets[player] < self.get_max_bet():
-                actions.append(self.call(player, self.get_max_bet() - self.bets[player]), self.fold(player), self.bet(player, x := random.randint(self.get_max_bet(),player.balance)) )
-            else:
-                actions.append(self.check(player), self.bet(player, x := random.randint(self.get_max_bet(),player.balance)))
-
-        return actions
           
     ### Round course and administration ###
+     
+    def get_actions(self, player : Player):
+        if player.has_folded == True:
+           return None
+        else:
+           actions = dict()
+           if self.bets[player] < self.get_max_bet():
+               actions['C'] = "self.call(self.current_player, self.get_max_bet() - self.bets[self.current_player])" 
+               actions['F'] = "self.fold(self.current_player)" 
+               actions['B'] = "self.bet(self.current_player, random.randint(self.get_max_bet()-self.bets[self.current_player],self.current_player.balance))" 
+           else:
+               actions['C'] = "self.check(self.current_player)" 
+               actions['B'] = "self.bet(self.current_player, random.randint(self.get_max_bet()-self.bets[self.current_player],self.current_player.balance))"
+        return actions
 
     def next_player(self):
             self.current_player = self.get_next_player(self.current_player)
@@ -172,42 +189,65 @@ class Round(Game):
                 print("Flop")
                 for i in self.deck.deal_cards(3):
                     self.community_cards.add(i)
-                self.current_player = self.get_next_player(self._big_blind)
+                self.current_player = self.get_next_player(self.big_blind_player)
                 self.next_move()
             elif self.round_phase == 3 or self.round_phase ==4:
                 print("Turn/River")
                 for i in self.deck.deal_cards(1):
                     self.community_cards.add(i)
-                self.current_player = self.get_next_player(self._big_blind)
+                self.current_player = self.get_next_player(self.big_blind_player)
                 self.next_move()
             else:
                 self.showdown()
 
         elif self.bets[self.current_player] < self.get_max_bet():
-            input1 = input("Press C to call, F to fold, X to all-in or enter the amount of your bet" + '\n')
-            if input1 == "C":
-                self.call(self.current_player, self.get_max_bet() - self.bets[self.current_player])
-            elif input1 == "F":
-                self.fold(self.current_player)
-            elif input1 == "X":
-                self.bet(self.current_player, self.current_player.balance)
-            elif False not in [i in [str(j) for j in range(10)] for i in input1]:
-                self.bet(self.current_player, int(input1))
+            if(self.current_player == self.game.controlled_player):
+                input1 = input("Press C to call, F to fold, X to all-in or enter the amount of your bet" + '\n')
+                if input1 == "C":
+                    self.call(self.current_player, self.get_max_bet() - self.bets[self.current_player])
+                elif input1 == "F":
+                    self.fold(self.current_player)
+                elif input1 == "X":
+                    self.bet(self.current_player, self.current_player.balance)
+                elif False not in [i in [str(j) for j in range(10)] for i in input1]:
+                    self.bet(self.current_player, int(input1))
+                else:
+                    self.next_move("Inadmissible action")
+            elif self.current_player != self.controlled_player and self.round_phase == 1:
+                actions = self.get_actions(self.current_player)
+                flag = True
+                for player in players:
+                    if player.position < self.current_player.position and player.has_folded == False:
+                        flag = False
+                        break
+                    else:
+                        continue
+                choice = charts(self.current_player.cards,self.current_player.position-10+len(self.players))
+                x = exec(actions[choice])
             else:
-                self.next_move("Inadmissible action")
+                actions = self.get_actions(self.current_player)
+                choice = random_action(actions)
+                x = exec(actions[choice])
+                
 
 
         
         else:
-            input1 = input("Press C to check, X to all-in or enter the amount of your bet"+ '\n')
-            if input1 == "C":
-                self.check(self.current_player)
-            elif input1 == "X":
-                self.bet(self.current_player, self.current_player.balance)
-            elif False not in [i in [str(j) for j in range(10)] for i in input1]:
-                self.bet(self.current_player, int(input1))
+            if(self.current_player == self.game.controlled_player):
+                input1 = input("Press C to check, X to all-in or enter the amount of your bet"+ '\n')
+                if input1 == "C":
+                    self.check(self.current_player)
+                elif input1 == "X":
+                    self.bet(self.current_player, self.current_player.balance)
+                elif False not in [i in [str(j) for j in range(10)] for i in input1]:
+                    self.bet(self.current_player, int(input1))
+                else:
+                    self.next_move("Inadmissible action")
             else:
-                self.next_move("Inadmissible action")
+                actions = self.get_actions(self.current_player)
+                choice = random_action(actions)
+                x = exec(actions[choice])
+               
 
 
     def bet(self,player: Player,amount):
@@ -255,12 +295,12 @@ class Round(Game):
         self.pot = self.pot/(list(hands_values.values()).count(max(hands_values.values())))
         for i in self.players:
             if hands_values[i] == max(hands_values.values()):
-                i.balance += self.pot
+                i.balance += round(self.pot)
                 print(f"\n{i} wins the pot: {self.pot}")
         
         players_copy = copy.deepcopy(self.players)
         for i in self.players:
-            if i.balance == 0:
+            if i.balance <= 0:
                 players_copy.remove(i)
                 print(f"{i} busts out!")
 
@@ -276,6 +316,7 @@ class Round(Game):
             if input1 == "Y":
                 for i in players:
                     i.reset()
+                    i.cycle_position()
                 Game_n = Game(players)
                 Round_n = Round(Game_n)
             elif input1 == "N":
@@ -298,21 +339,21 @@ class Round(Game):
         for i in self.players:
             if(i.has_folded == False):
                 print(f"{i}: {i.balance}, bets {self.bets[i]} {i.check_allin()}")
-                if i == self.get_next_player(self.get_next_player(Game.dealer)):
+                if i.position == 9:
                     print(" *BIG BLIND*" +'\n')
-                elif i == self.get_next_player(Game.dealer):
+                elif i.position == 8:
                     print(" *SMALL BLIND*"+'\n')
-                elif i == Game.dealer:
+                elif i.position == 7:
                     print(" *DEALER*"+'\n')
                 else:
                     print('\n')
             else:
                 print(f"{i}: {i.balance} FOLDED")
-                if i == self.get_next_player(self.get_next_player(Game.dealer)):
+                if i.position == 9:
                     print(" *BIG BLIND*" +'\n')
-                elif i == self.get_next_player(Game.dealer):
+                elif i.position == 8:
                     print(" *SMALL BLIND*"+'\n')
-                elif i == Game.dealer:
+                elif i.position == 7:
                     print(" *DEALER*"+'\n')
                 else:
                     print('\n')
